@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-dev-change-me
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PG_SUPER_URL: postgresql://postgres:local-dev-change-me@localhost:5432/postgres
+      CURRY_APP_PASSWORD: local-dev-change-me
+      CURRY_OWNER_PASSWORD: local-dev-change-me
+      DATABASE_URL: postgresql://curry_app:local-dev-change-me@127.0.0.1:5432/curry_partner
+      MIGRATION_DATABASE_URL: postgresql://curry_owner:local-dev-change-me@127.0.0.1:5432/curry_partner
+      TEST_DATABASE_URL: postgresql://curry_app:local-dev-change-me@127.0.0.1:5432/curry_partner_test
+      TEST_MIGRATION_DATABASE_URL: postgresql://curry_owner:local-dev-change-me@127.0.0.1:5432/curry_partner_test
+      ACCESS_TOKEN_SECRET: ci-access-token-secret-should-be-32-chars
+      NODE_ENV: test
+      ENABLE_SCHEDULER: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm db:init
+      - run: pnpm --filter @curry/api exec prisma generate
+      - run: pnpm test
+      - run: pnpm --filter @curry/admin build
+      - run: pnpm --filter @curry/mobile typecheck

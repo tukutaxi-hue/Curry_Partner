@@ -1,0 +1,559 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("MIGRATION_DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  HOMEMAKER
+
+  @@map("user_role")
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("account_status")
+}
+
+enum OnboardingStatus {
+  SUBMITTED
+  MORE_INFO
+  APPROVED
+  REJECTED
+
+  @@map("onboarding_status")
+}
+
+enum MenuStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+
+  @@map("menu_status")
+}
+
+enum CommitmentStatus {
+  COMMITTED
+  PREPARING
+  READY_FOR_COLLECTION
+  COLLECTED
+  REJECTED
+  COMPLETED
+
+  @@map("commitment_status")
+}
+
+enum CollectionStatus {
+  SCHEDULED
+  COLLECTED
+  MISSED
+
+  @@map("collection_status")
+}
+
+enum WaterContent {
+  LOW
+  NORMAL
+  HIGH
+
+  @@map("water_content")
+}
+
+enum Freshness {
+  GOOD
+  ACCEPTABLE
+  POOR
+
+  @@map("freshness")
+}
+
+enum Hygiene {
+  PASS
+  FAIL
+
+  @@map("hygiene")
+}
+
+enum InspectionResult {
+  PASSED
+  FAILED
+  DISPUTED
+  RESOLVED_ACCEPTED
+  RESOLVED_REJECTED
+
+  @@map("inspection_result")
+}
+
+enum StockMovementType {
+  ALLOCATION
+  SALE
+  WASTE
+  RETURN
+  ADJUSTMENT
+
+  @@map("stock_movement_type")
+}
+
+enum LedgerType {
+  CREDIT
+  REVERSAL
+  PAYOUT
+
+  @@map("ledger_type")
+}
+
+enum PayoutBatchStatus {
+  DRAFT
+  APPROVED
+  PAID
+  FAILED
+
+  @@map("payout_batch_status")
+}
+
+enum PayoutItemStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+  REVERSED
+
+  @@map("payout_item_status")
+}
+
+model User {
+  id                 String        @id @default(cuid())
+  role               UserRole
+  phone              String        @unique
+  email              String?       @unique
+  name               String
+  passwordHash       String        @map("password_hash")
+  mustChangePassword Boolean       @default(false) @map("must_change_password")
+  accountStatus      AccountStatus @default(ACTIVE) @map("account_status")
+  tokenVersion       Int           @default(0) @map("token_version")
+  isDemo             Boolean       @default(false) @map("is_demo")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  profile           HomemakerProfile?
+  notifications     Notification[]
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  reviewedRequests  OnboardingRequest[] @relation("ReviewedBy")
+  createdRequests   OnboardingRequest[] @relation("CreatedUser")
+
+  @@map("users")
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshHash String    @unique @map("refresh_hash")
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model ServiceArea {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique
+  active    Boolean  @default(true)
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  profiles HomemakerProfile[]
+  stalls   Stall[]
+  menus    DailyMenu[]
+  requests OnboardingRequest[]
+
+  @@map("service_areas")
+}
+
+model Stall {
+  id            String      @id @default(cuid())
+  name          String
+  serviceAreaId String      @map("service_area_id")
+  serviceArea   ServiceArea @relation(fields: [serviceAreaId], references: [id])
+  addressLine   String      @map("address_line")
+  active        Boolean     @default(true)
+  isDemo        Boolean     @default(false) @map("is_demo")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  lots      StockLot[]
+  movements StockMovement[]
+
+  @@index([serviceAreaId])
+  @@map("stalls")
+}
+
+model OnboardingRequest {
+  id                     String           @id @default(cuid())
+  referenceCode          String           @unique @map("reference_code")
+  name                   String
+  phone                  String
+  addressLine            String           @map("address_line")
+  serviceAreaId          String           @map("service_area_id")
+  serviceArea            ServiceArea      @relation(fields: [serviceAreaId], references: [id])
+  foodPreparationDetails String           @map("food_preparation_details")
+  agreementAcknowledged  Boolean          @map("agreement_acknowledged")
+  agreementVersion       String           @map("agreement_version")
+  status                 OnboardingStatus @default(SUBMITTED)
+  adminNotes             String?          @map("admin_notes")
+  reviewedById           String?          @map("reviewed_by_id")
+  reviewedBy             User?            @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt             DateTime?        @map("reviewed_at")
+  createdUserId          String?          @map("created_user_id")
+  createdUser            User?            @relation("CreatedUser", fields: [createdUserId], references: [id])
+  isDemo                 Boolean          @default(false) @map("is_demo")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+
+  profile HomemakerProfile?
+
+  @@index([phone, status])
+  @@map("onboarding_requests")
+}
+
+model HomemakerProfile {
+  id                      String            @id @default(cuid())
+  userId                  String            @unique @map("user_id")
+  user                    User              @relation(fields: [userId], references: [id])
+  addressLine             String            @map("address_line")
+  serviceAreaId           String            @map("service_area_id")
+  serviceArea             ServiceArea       @relation(fields: [serviceAreaId], references: [id])
+  foodPreparationDetails  String            @map("food_preparation_details")
+  agreementVersion        String            @map("agreement_version")
+  agreementAcknowledgedAt DateTime          @map("agreement_acknowledged_at")
+  onboardingRequestId     String?           @unique @map("onboarding_request_id")
+  onboardingRequest       OnboardingRequest? @relation(fields: [onboardingRequestId], references: [id])
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+
+  commitments Commitment[]
+  ledger      LedgerEntry[]
+  payoutItems PayoutItem[]
+
+  @@index([serviceAreaId])
+  @@map("homemaker_profiles")
+}
+
+model PlatformSetting {
+  id                           String   @id @default("default")
+  maxCurriesPerHomemakerPerDay Int      @default(2) @map("max_curries_per_homemaker_per_day")
+  maxKgPerCurry                Decimal  @default(2) @map("max_kg_per_curry") @db.Decimal(10, 3)
+  menuPublishCutoffLocal       String   @default("17:00") @map("menu_publish_cutoff_local")
+  commitmentCutoffLocal        String   @default("21:00") @map("commitment_cutoff_local")
+  timezone                     String   @default("Asia/Kolkata")
+  agreementVersion             String   @default("cp-agreement-2026-11") @map("agreement_version")
+  currency                     String   @default("INR")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+model DailyMenu {
+  id            String      @id @default(cuid())
+  serviceDate   DateTime    @map("service_date") @db.Date
+  serviceAreaId String      @map("service_area_id")
+  serviceArea   ServiceArea @relation(fields: [serviceAreaId], references: [id])
+  status        MenuStatus  @default(DRAFT)
+  publishedAt   DateTime?   @map("published_at")
+  cutoffAt      DateTime    @map("cutoff_at")
+  notes         String?
+  createdById   String      @map("created_by_id")
+  isDemo        Boolean     @default(false) @map("is_demo")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  items MenuItem[]
+
+  @@unique([serviceDate, serviceAreaId])
+  @@index([status, serviceDate])
+  @@map("daily_menus")
+}
+
+model MenuItem {
+  id                      String    @id @default(cuid())
+  menuId                  String    @map("menu_id")
+  menu                    DailyMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  name                    String
+  description             String
+  preparationInstructions String    @map("preparation_instructions")
+  compensationPerKg       Decimal   @map("compensation_per_kg") @db.Decimal(12, 2)
+  maxKgPerHomemaker       Decimal?  @map("max_kg_per_homemaker") @db.Decimal(10, 3)
+  sortOrder               Int       @default(0) @map("sort_order")
+  active                  Boolean   @default(true)
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  commitments Commitment[]
+  lots        StockLot[]
+
+  @@index([menuId])
+  @@map("menu_items")
+}
+
+model Commitment {
+  id                      String           @id @default(cuid())
+  homemakerProfileId      String           @map("homemaker_profile_id")
+  homemakerProfile        HomemakerProfile @relation(fields: [homemakerProfileId], references: [id])
+  menuItemId              String           @map("menu_item_id")
+  menuItem                MenuItem         @relation(fields: [menuItemId], references: [id])
+  serviceDate             DateTime         @map("service_date") @db.Date
+  requestedQuantityKg     Decimal          @map("requested_quantity_kg") @db.Decimal(10, 3)
+  itemName                String           @map("item_name")
+  ratePerKg               Decimal          @map("rate_per_kg") @db.Decimal(12, 2)
+  preparationInstructions String           @map("preparation_instructions")
+  status                  CommitmentStatus @default(COMMITTED)
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+
+  events     CommitmentStatusEvent[]
+  collection CollectionRecord?
+  inspection Inspection?
+  ledger     LedgerEntry[]
+  lot        StockLot?
+
+  @@unique([homemakerProfileId, menuItemId])
+  @@index([serviceDate, status])
+  @@map("commitments")
+}
+
+model CommitmentStatusEvent {
+  id           String            @id @default(cuid())
+  commitmentId String            @map("commitment_id")
+  commitment   Commitment        @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  fromStatus   CommitmentStatus? @map("from_status")
+  toStatus     CommitmentStatus  @map("to_status")
+  actorId      String?           @map("actor_id")
+  note         String?
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([commitmentId, createdAt])
+  @@map("commitment_status_events")
+}
+
+model CollectionRecord {
+  id           String           @id @default(cuid())
+  commitmentId String           @unique @map("commitment_id")
+  commitment   Commitment       @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  status       CollectionStatus @default(SCHEDULED)
+  collectedAt  DateTime?        @map("collected_at")
+  staffName    String?          @map("staff_name")
+  notes        String?
+  updatedById  String?          @map("updated_by_id")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@map("collection_records")
+}
+
+model Inspection {
+  id                 String           @id @default(cuid())
+  commitmentId       String           @unique @map("commitment_id")
+  commitment         Commitment       @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  weightKg           Decimal          @map("weight_kg") @db.Decimal(10, 3)
+  waterContent       WaterContent     @map("water_content")
+  freshness          Freshness
+  hygiene            Hygiene
+  notes              String?
+  photoUrl           String?          @map("photo_url")
+  acceptedQuantityKg Decimal          @map("accepted_quantity_kg") @db.Decimal(10, 3)
+  result             InspectionResult
+  resolutionReason   String?          @map("resolution_reason")
+  resolvedQuantityKg Decimal?         @map("resolved_quantity_kg") @db.Decimal(10, 3)
+  resolvedAt         DateTime?        @map("resolved_at")
+  resolvedById       String?          @map("resolved_by_id")
+  createdById        String           @map("created_by_id")
+  createdAt          DateTime         @default(now()) @map("created_at")
+
+  ledger LedgerEntry[]
+  lot    StockLot?
+
+  @@index([result])
+  @@map("inspections")
+}
+
+model StockLot {
+  id            String     @id @default(cuid())
+  commitmentId  String     @unique @map("commitment_id")
+  commitment    Commitment @relation(fields: [commitmentId], references: [id])
+  inspectionId  String     @unique @map("inspection_id")
+  inspection    Inspection @relation(fields: [inspectionId], references: [id])
+  menuItemId    String     @map("menu_item_id")
+  menuItem      MenuItem   @relation(fields: [menuItemId], references: [id])
+  serviceAreaId String     @map("service_area_id")
+  stallId       String?    @map("stall_id")
+  stall         Stall?     @relation(fields: [stallId], references: [id])
+  acceptedKg    Decimal    @map("accepted_kg") @db.Decimal(10, 3)
+  soldKg        Decimal    @default(0) @map("sold_kg") @db.Decimal(10, 3)
+  wasteKg       Decimal    @default(0) @map("waste_kg") @db.Decimal(10, 3)
+  returnedKg    Decimal    @default(0) @map("returned_kg") @db.Decimal(10, 3)
+  adjustmentKg  Decimal    @default(0) @map("adjustment_kg") @db.Decimal(10, 3)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  movements StockMovement[]
+
+  @@index([serviceAreaId, stallId])
+  @@map("stock_lots")
+}
+
+model StockMovement {
+  id             String            @id @default(cuid())
+  lotId          String            @map("lot_id")
+  lot            StockLot          @relation(fields: [lotId], references: [id])
+  stallId        String?           @map("stall_id")
+  stall          Stall?            @relation(fields: [stallId], references: [id])
+  type           StockMovementType
+  quantityKg     Decimal           @map("quantity_kg") @db.Decimal(10, 3)
+  reason         String
+  actorId        String            @map("actor_id")
+  idempotencyKey String?           @unique @map("idempotency_key")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  @@index([lotId, createdAt])
+  @@map("stock_movements")
+}
+
+model LedgerEntry {
+  id                 String            @id @default(cuid())
+  entryKey           String            @unique @map("entry_key")
+  homemakerProfileId String            @map("homemaker_profile_id")
+  profile            HomemakerProfile  @relation(fields: [homemakerProfileId], references: [id])
+  commitmentId       String?           @map("commitment_id")
+  commitment         Commitment?       @relation(fields: [commitmentId], references: [id])
+  inspectionId       String?           @map("inspection_id")
+  inspection         Inspection?       @relation(fields: [inspectionId], references: [id])
+  reversesEntryId    String?           @map("reverses_entry_id")
+  reversesEntry      LedgerEntry?      @relation("LedgerReversal", fields: [reversesEntryId], references: [id])
+  reversedBy         LedgerEntry[]     @relation("LedgerReversal")
+  settlesEntryId     String?           @unique @map("settles_entry_id")
+  settlesEntry       LedgerEntry?      @relation("LedgerSettlement", fields: [settlesEntryId], references: [id])
+  settledBy          LedgerEntry?      @relation("LedgerSettlement")
+  type               LedgerType
+  itemName           String            @map("item_name")
+  serviceDate        DateTime          @map("service_date") @db.Date
+  acceptedQuantityKg Decimal           @map("accepted_quantity_kg") @db.Decimal(10, 3)
+  ratePerKg          Decimal           @map("rate_per_kg") @db.Decimal(12, 2)
+  amount             Decimal           @db.Decimal(12, 2)
+  note               String?
+  createdAt          DateTime          @default(now()) @map("created_at")
+
+  payoutLinks PayoutItemCredit[]
+
+  @@index([homemakerProfileId, serviceDate])
+  @@map("ledger_entries")
+}
+
+model PayoutBatch {
+  id            String            @id @default(cuid())
+  weekStart     DateTime          @map("week_start") @db.Date
+  weekEnd       DateTime          @map("week_end") @db.Date
+  status        PayoutBatchStatus @default(DRAFT)
+  reference     String?
+  failureDetail String?           @map("failure_detail")
+  createdById   String            @map("created_by_id")
+  isDemo        Boolean           @default(false) @map("is_demo")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  items PayoutItem[]
+
+  @@index([weekStart])
+  @@map("payout_batches")
+}
+
+model PayoutItem {
+  id                 String           @id @default(cuid())
+  batchId            String           @map("batch_id")
+  batch              PayoutBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  homemakerProfileId String           @map("homemaker_profile_id")
+  profile            HomemakerProfile @relation(fields: [homemakerProfileId], references: [id])
+  amount             Decimal          @db.Decimal(12, 2)
+  status             PayoutItemStatus @default(PENDING)
+  reference          String?
+  failureDetail      String?          @map("failure_detail")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  credits PayoutItemCredit[]
+
+  @@index([batchId])
+  @@index([homemakerProfileId])
+  @@map("payout_items")
+}
+
+model PayoutItemCredit {
+  id              String      @id @default(cuid())
+  payoutItemId    String      @map("payout_item_id")
+  payoutItem      PayoutItem  @relation(fields: [payoutItemId], references: [id], onDelete: Cascade)
+  ledgerEntryId   String      @map("ledger_entry_id")
+  ledgerEntry     LedgerEntry @relation(fields: [ledgerEntryId], references: [id])
+  activeLedgerKey String?     @unique @map("active_ledger_key")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@unique([payoutItemId, ledgerEntryId])
+  @@map("payout_item_credits")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  data      Json?
+  dedupeKey String?   @map("dedupe_key")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?  @map("actor_id")
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  key          String
+  method       String
+  path         String
+  statusCode   Int      @map("status_code")
+  responseBody Json     @map("response_body")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, key])
+  @@map("idempotency_keys")
+}
