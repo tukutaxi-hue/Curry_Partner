@@ -97,7 +97,8 @@ function Login({ onUser }: { onUser: (user: ApiUser) => void }) {
           <label>Phone<input name="phone" autoComplete="username" required defaultValue="+919800000001" /></label>
           <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
           <button className="btn" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</button>
-          {import.meta.env.DEV ? <p className="muted">Demo only: +919800000001 / DemoAdmin-2026. These are fixture passwords, not production credentials.</p> : null}
+          {import.meta.env.VITE_HOME_URL ? <p className="muted"><a href={import.meta.env.VITE_HOME_URL}>Open the homemaker app</a></p> : null}
+          {import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO === "true" ? <p className="muted">Demo only: +919800000001 / DemoAdmin-2026. These are fixture passwords, not production credentials.</p> : null}
         </form>
       </section>
     </div>

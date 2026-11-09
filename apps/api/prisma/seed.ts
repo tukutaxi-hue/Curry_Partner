@@ -4,8 +4,8 @@ import { DateTime } from "luxon";
 import { hashPassword } from "../src/auth/passwords.js";
 import { creditAmount } from "../src/money.js";
 
-if (process.env.NODE_ENV === "production") {
-  console.error("Refusing to seed while NODE_ENV=production.");
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "true") {
+  console.error("Refusing to seed while NODE_ENV=production. Set ALLOW_DEMO_SEED=true only for a labeled demo.");
   process.exit(1);
 }
 

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "bash scripts/vercel-build.sh",
+  "outputDirectory": "vercel-out",
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/cook", "destination": "/cook/index.html" },
+    { "source": "/cook/", "destination": "/cook/index.html" },
+    { "source": "/((?!api/|cook/).*)", "destination": "/index.html" }
+  ]
+}
