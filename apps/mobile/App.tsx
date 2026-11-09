@@ -144,6 +144,7 @@ function Welcome({ open }: { open: (screen: Screen) => void }) {
       <Pressable style={styles.primary} onPress={() => open("login")}><Text style={styles.primaryText}>Sign in</Text></Pressable>
       <Pressable style={styles.secondary} onPress={() => open("join")}><Text style={styles.secondaryText}>Request to cook</Text></Pressable>
       <Pressable onPress={() => open("status")}><Text style={styles.link}>Check a request</Text></Pressable>
+      {process.env.EXPO_PUBLIC_SHOW_DEMO === "true" ? <Text style={styles.copy}>Demo cook: +919800000002 / DemoHome-2026. First login: +919800000003 / DemoTemp-2026.</Text> : null}
     </View>
   );
 }
