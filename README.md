@@ -42,7 +42,7 @@ pnpm --filter @curry/mobile web
 - Admin: `http://127.0.0.1:5173` (proxies `/api` so the session cookie stays on the admin origin)
 - Homemaker web preview: Expo’s URL, usually `http://127.0.0.1:8081`
 
-`pnpm db:setup` creates the `curry_owner` and `curry_app` roles, applies migrations, applies `apps/api/prisma/security.sql`, and loads demo fixtures. The seed refuses to run when `NODE_ENV=production`.
+`pnpm db:setup` creates the `curry_owner` and `curry_app` roles, applies migrations, applies `apps/api/prisma/security.sql`, and loads demo fixtures. The seed refuses to run when `NODE_ENV=production` unless `ALLOW_DEMO_SEED=true`.
 
 Android emulator API host is `http://10.0.2.2:4000`. Set `EXPO_PUBLIC_API_URL` before starting Expo. A device build uses Expo (`pnpm --filter @curry/mobile android` with Android Studio). Push notifications are not wired; alerts stay in the app even if a push would have failed.
 
@@ -89,13 +89,44 @@ The API tests cover onboarding without access, forced password change, area and 
 - The API refuses to boot in production when the database URL or token secret still contains a placeholder, or when cookies are not marked secure.
 - Do not commit `apps/api/.env`.
 
+## Check both apps on Vercel
+
+One Vercel project serves both web apps and the API on the same address.
+
+- Admin dashboard: `https://<your-project>.vercel.app`
+- Homemaker app: `https://<your-project>.vercel.app/cook`
+- API: `https://<your-project>.vercel.app/api`
+
+The admin sign-in page links to the homemaker app. With `ALLOW_DEMO_SEED=true`, both screens show the demo phones and passwords.
+
+1. Create a hosted Postgres 16 database (Neon and Supabase work). Copy its connection string.
+2. In Vercel, import this repository. Leave the root directory as the repository root. Framework preset is Other. The repo `vercel.json` sets the build.
+3. Set these environment variables for Production and Preview:
+
+| Name | Value |
+| --- | --- |
+| `DATABASE_URL` | The hosted Postgres URL. Add `?connection_limit=1` if the host does not pool connections. |
+| `MIGRATION_DATABASE_URL` | The same URL for a first check. Use a separate owner role when you split runtime and migrations. |
+| `ACCESS_TOKEN_SECRET` | A random string of at least 32 characters. Do not reuse a local placeholder. |
+| `COOKIE_SECURE` | `true` |
+| `ENABLE_SCHEDULER` | `false` |
+| `ALLOW_DEMO_SEED` | `true` while you are clicking through the demo. Remove it before real homemakers use the site. |
+| `CORS_ORIGINS` | The Vercel URL, for example `https://<your-project>.vercel.app` |
+
+4. Deploy. The build applies migrations, row-level security, and, when allowed, the DEMO seed.
+5. Open the site root for the admin dashboard and `/cook` for the homemaker app.
+
+A single database login is enough for this check. The build skips the `curry_app` grants when that role does not exist, and a login that owns the tables bypasses row-level security. The API still checks the signed-in role. Before a real launch, create `curry_app` and `curry_owner` on the host and point `DATABASE_URL` at `curry_app`.
+
 ## Deployment
+
+The Vercel section above is the web check. The steps below are for a separate API host.
 
 1. Provision PostgreSQL 16.
 2. Create `curry_owner` and `curry_app` with strong passwords. Point `MIGRATION_DATABASE_URL` at the owner and `DATABASE_URL` at `curry_app`.
 3. Set `ACCESS_TOKEN_SECRET` (32+ random characters), `NODE_ENV=production`, `COOKIE_SECURE=true`, and the real admin-site origins in `CORS_ORIGINS`.
 4. Run `pnpm --filter @curry/api db:migrate` and `pnpm --filter @curry/api db:security`.
-5. Create the first admin with a one-off script that hashes a password. Do not run the demo seed.
+5. Create the first admin with a one-off script that hashes a password. Leave `ALLOW_DEMO_SEED` unset so the demo fixtures are not loaded.
 6. Serve the API over HTTPS. Build the admin with `pnpm --filter @curry/admin build` and host it behind the same site as `/api`, or keep the cookie origin aligned with `CORS_ORIGINS`.
 7. Build the Android app with Expo using the production `EXPO_PUBLIC_API_URL`.
 
