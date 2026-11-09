@@ -1,0 +1,30 @@
+{
+  "name": "curry-partner",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Curry Partner — home cooks and local curry-point stalls.",
+  "scripts": {
+    "db:init": "bash scripts/init-db.sh",
+    "db:migrate": "pnpm --filter @curry/api db:migrate",
+    "db:security": "pnpm --filter @curry/api db:security",
+    "db:seed": "pnpm --filter @curry/api db:seed",
+    "db:setup": "bash scripts/init-db.sh && pnpm db:migrate && pnpm db:security && pnpm db:seed",
+    "dev:api": "pnpm --filter @curry/api dev",
+    "dev:admin": "pnpm --filter @curry/admin dev",
+    "dev:mobile": "pnpm --filter @curry/mobile dev",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @curry/api test",
+    "build": "pnpm --filter @curry/api typecheck && pnpm --filter @curry/admin build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.33.4",
+  "pnpm": {
+    "overrides": {
+      "react": "19.3.0",
+      "react-dom": "19.3.0"
+    },
+    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "argon2", "esbuild", "prisma"]
+  }
+}
